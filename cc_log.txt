@@ -1,0 +1,6 @@
+=== Mini-TCP-CC sender log ===
+
+[CC] SLOW_START              cwnd=2.00  ssthresh=16  base=0
+[CC] TIMEOUT→SlowStart     cwnd=1.00  ssthresh=2  base=1
+
+=== Transfer complete ===
