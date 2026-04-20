@@ -41,7 +41,7 @@ struct packet {
     char data[PAYLOAD_SIZE];
 };
 
-// ── Checksum ─────────────────────────────────────────────────────────────────
+// Checksum 
 uint16_t checksum(void *data, int len)
 {
     uint32_t  sum = 0;
@@ -74,7 +74,7 @@ int should_drop(int rate)
     return (rand() % 100) < rate;
 }
 
-// ── CC logging helper ─────────────────────────────────────────────────────────
+// CC logging helper 
 // writes a line to the log file and echoes to stdout
 static void cc_log(FILE *log, const char *event,
                    double cwnd, uint32_t ssthresh, uint32_t base)
@@ -85,7 +85,7 @@ static void cc_log(FILE *log, const char *event,
             event, cwnd, ssthresh, base);
 }
 
-// ── SENDER ────────────────────────────────────────────────────────────────────
+// sender
 void sender(char *file, char *ip, int port, int loss_rate, int reorder_rate)
 {
     FILE *fp = fopen(file, "rb");
@@ -105,13 +105,13 @@ void sender(char *file, char *ip, int port, int loss_rate, int reorder_rate)
     addr.sin_port   = htons(port);
     inet_pton(AF_INET, ip, &addr.sin_addr);
 
-    // ── Congestion-control state ──────────────────────────────────────────────
+    // cc state
     double   cwnd          = CC_INIT_CWND;     // congestion window (in packets, float for gradual growth)
     uint32_t ssthresh      = CC_INIT_SSTHRESH; // slow-start threshold
     uint32_t dup_ack_count = 0;                // consecutive duplicate ACKs received
     uint32_t last_ack      = 0;                // last ACK number seen (used to detect duplicates)
     int      first_ack     = 1;                // flag: haven't received any ACK yet
-    // ─────────────────────────────────────────────────────────────────────────
+
 
     // sliding-window bookkeeping
     struct packet window[WINDOW_SIZE];
@@ -174,8 +174,7 @@ void sender(char *file, char *ip, int port, int loss_rate, int reorder_rate)
         int rv = select(sock + 1, &readfds, NULL, NULL, &tv);
 
         if (rv == 0) {
-            // ── TIMEOUT: severe congestion signal ─────────────────────────────
-            // cut ssthresh to half of cwnd, reset cwnd to 1, re-enter slow start
+           // timeout
             ssthresh = (uint32_t)(cwnd / 2);
             if (ssthresh < 2) ssthresh = 2;  // keep ssthresh >= 2
             cwnd          = CC_INIT_CWND;    // back to slow start
@@ -195,7 +194,7 @@ void sender(char *file, char *ip, int port, int loss_rate, int reorder_rate)
             }
 
         } else {
-            // ── Received a packet (should be an ACK) ──────────────────────────
+            // Received a packet (should be an ACK)
             struct packet ack;
             socklen_t len = sizeof(addr);
             recvfrom(sock, &ack, sizeof(ack), 0,
@@ -207,7 +206,6 @@ void sender(char *file, char *ip, int port, int loss_rate, int reorder_rate)
                 uint32_t acknum = ntohl(ack.header.ack_num);
                 printf("ACK %u\n", acknum);
 
-                // ── Detect duplicate ACK ───────────────────────────────────────
                 // a duplicate ACK means the receiver got an out-of-order packet
                 // and is re-sending the last in-order ACK it issued
                 if (!first_ack && acknum == last_ack) {
@@ -215,9 +213,6 @@ void sender(char *file, char *ip, int port, int loss_rate, int reorder_rate)
                     cc_log(log, "DUP_ACK", cwnd, ssthresh, base);
 
                     if (dup_ack_count == 3) {
-                        // ── Fast Retransmit (3 duplicate ACKs) ────────────────
-                        // TCP Reno: halve ssthresh & cwnd, immediately retransmit
-                        // the missing packet without waiting for a timeout
                         ssthresh = (uint32_t)(cwnd / 2);
                         if (ssthresh < 2) ssthresh = 2;
                         cwnd          = ssthresh; // set cwnd = ssthresh (TCP Reno)
@@ -233,19 +228,13 @@ void sender(char *file, char *ip, int port, int loss_rate, int reorder_rate)
                     }
 
                 } else {
-                    // ── New (non-duplicate) ACK ────────────────────────────────
+                    // New ACK (non-duplicate)  
                     dup_ack_count = 0; // reset on any forward progress
 
                     if (cwnd < ssthresh) {
-                        // ── Slow Start ─────────────────────────────────────────
-                        // increment cwnd by 1 per ACK → exponential growth
-                        // (doubles each RTT) until ssthresh is reached
                         cwnd += 1.0;
                         cc_log(log, "SLOW_START", cwnd, ssthresh, base);
                     } else {
-                        // ── Congestion Avoidance ───────────────────────────────
-                        // increment cwnd by 1/cwnd per ACK → linear growth
-                        // (~+1 MSS per full RTT), TCP AIMD behaviour
                         cwnd += 1.0 / cwnd;
                         cc_log(log, "CONG_AVOIDANCE", cwnd, ssthresh, base);
                     }
