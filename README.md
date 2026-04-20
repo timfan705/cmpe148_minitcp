@@ -23,6 +23,19 @@ All congestion control logic lives in the sender. The receiver's only role in CC
 is to send a duplicate ACK whenever an out-of-order packet arrives, which signals
 a potential loss event to the sender. 
 
+Slow Start - Trigger: cwnd < ssthresh
+On every new (non-duplicate) ACK received, cwnd is incremented by 1. This produces exponential growth; cwnd roughly doubles each RTT — until ssthresh is reached, at which point the sender transitions to congestion avoidance.
+
+Congestion Avoidance - Trigger: cwnd >= ssthresh
+On every new ACK, cwnd is incremented by 1/cwnd. This produces linear growth of approximately +1 MSS per RTT (TCP AIMD behaviour), probing for available bandwidth cautiously.
+
+Timeout - Trigger: No ACK recieved within timeout variable 
+A timeout indicates severe congestion. The sender reacts aggressively, and the entire outstanding window is then retransmitted.
+
+Fast Retransmit (3 Duplicate ACKs) - Trigger: 3 consecutive duplicate ACKs for the same sequence number
+Three duplicate ACKs suggest a single lost packet rather than severe congestion.
+The sender retransmits the missing packet immediately without waiting for a timeout,
+and adjusts the CC state (TCP Reno behaviour).
 
 
 Protocal Summary:
